@@ -13,6 +13,7 @@ import {
   GraphQLUnionType,
   GraphQLInterfaceType,
   Kind,
+  GraphQLError,
 } from "graphql";
 import { nanoid } from "nanoid";
 import fetch from "node-fetch";
@@ -113,6 +114,19 @@ function validateBody(event) {
   }
 }
 
+type ErrorObject = {
+  statusCode: number;
+  errors: Array<{ message: string } | GraphQLError>;
+};
+
+class RequestError extends Error {
+  readonly error: ErrorObject;
+  constructor(error: ErrorObject) {
+    super(error.errors[0]?.message || "");
+    this.error = error;
+  }
+}
+
 function getUnderlyingTypeName(t: GraphQLOutputType): string {
   if (isLeafType(t)) {
     return t.name;
@@ -158,22 +172,22 @@ async function getOctokit() {
   const gitHubToken = secrets.gitHub?.bearerToken;
 
   if (!gitHubToken) {
-    // XXX: Make own error class
-    throw new Error("Internal error. Missing GitHub authentication.");
+    throw new RequestError({
+      statusCode: 500,
+      errors: [{ message: "Internal error. Missing GitHub authentication." }],
+    });
   }
 
   return new Octokit({ auth: gitHubToken });
 }
 
-export const handler: Handler = async (event, context) => {
+async function saveQuery(event) {
   const bodyOrError = validateBody(event);
   if (bodyOrError instanceof Error) {
-    return {
+    throw new RequestError({
       statusCode: 400,
-      body: JSON.stringify({
-        error: bodyOrError.message,
-      }),
-    };
+      errors: [{ message: bodyOrError.message }],
+    });
   }
 
   const { query, parsedQuery, operationName } = bodyOrError;
@@ -188,6 +202,37 @@ export const handler: Handler = async (event, context) => {
     })
   );
 
+  const existingFilePromise = octokitPromise
+    .then(async (octokit) => {
+      const content = await octokit.rest.repos.getContent({
+        owner: "dwwoelfel",
+        repo: "graph-examples",
+        path: `examples/${operationName}.md`,
+        ref: "refs/heads/main",
+      });
+      if (content.data) {
+        throw new RequestError({
+          statusCode: 400,
+          errors: [
+            { message: `An example with ${operationName} already exists.` },
+          ],
+        });
+      }
+    })
+    .catch((e) => {
+      if (e.status === 404) {
+        return null;
+      }
+      throw new RequestError({
+        statusCode: 500,
+        errors: [
+          {
+            message: `Internal error. Could not check if an example with ${operationName} already exists.`,
+          },
+        ],
+      });
+    });
+
   const serviceInfo = await fetchServiceInfo({});
 
   const buildNumber = serviceInfo.data.oneGraph.serverInfo.buildNumber;
@@ -199,12 +244,10 @@ export const handler: Handler = async (event, context) => {
   const errors = validate(schema, parsedQuery);
 
   if (errors.length) {
-    return {
+    throw new RequestError({
       statusCode: 400,
-      body: JSON.stringify({
-        errors: errors,
-      }),
-    };
+      errors: [...errors],
+    });
   }
 
   const allTypeNames = new Set([]);
@@ -235,6 +278,9 @@ export const handler: Handler = async (event, context) => {
 
   const newBranchRef = `refs/heads/save-query-${nanoid(8)}`;
   const octokit = await octokitPromise;
+
+  await existingFilePromise;
+
   await octokit.rest.git.createRef({
     owner: "dwwoelfel", // TODO: get from environment
     repo: "graph-examples", // TODO: get from environment
@@ -266,12 +312,33 @@ export const handler: Handler = async (event, context) => {
   });
 
   return {
-    statusCode: 200,
-    body: JSON.stringify({
-      pullRequest: {
-        url: pull.data.html_url,
-        number: pull.data.number,
-      },
-    }),
+    pullRequest: {
+      url: pull.data.html_url,
+      number: pull.data.number,
+    },
   };
+}
+
+export const handler: Handler = async (event, context) => {
+  try {
+    const result = await saveQuery(event);
+    return {
+      statusCode: 200,
+      body: JSON.stringify(result),
+    };
+  } catch (e) {
+    if (e instanceof RequestError) {
+      return {
+        statusCode: e.error.statusCode,
+        body: JSON.stringify({ errors: e.error.errors }),
+      };
+    }
+    console.error(e);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({
+        errors: [{ message: "Unexpected error. Please try again." }],
+      }),
+    };
+  }
 };
