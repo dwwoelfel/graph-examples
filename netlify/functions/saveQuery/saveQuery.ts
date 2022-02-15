@@ -169,6 +169,8 @@ ${prettyQuery}
 async function getOctokit() {
   const secrets = await getSecrets();
 
+  console.log('secrets', secrets);
+
   const gitHubToken = secrets.gitHub?.bearerToken;
 
   if (!gitHubToken) {
