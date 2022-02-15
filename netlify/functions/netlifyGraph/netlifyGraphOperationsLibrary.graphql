@@ -1,0 +1,13 @@
+query ServiceInfo @netlify(id: """f7913a3f-b6a8-434e-83b8-28ba5e88f9f4""", doc: """An example query to start with.""") {
+  oneGraph {
+    serverInfo {
+      buildNumber
+    }
+    services {
+      service
+      slug
+      friendlyServiceName
+      typePrefix
+    }
+  }
+}
