@@ -167,7 +167,7 @@ ${prettyQuery}
 }
 
 async function getOctokit(event) {
-  const secrets = await getSecrets(event);  
+  const secrets = await getSecrets(event);
 
   const gitHubToken = secrets.gitHub?.bearerToken;
 
@@ -211,10 +211,10 @@ async function saveQuery(event) {
         ref: "refs/heads/main",
       });
       if (content.data) {
-        throw new RequestError({
+        return new RequestError({
           statusCode: 400,
           errors: [
-            { message: `An example with ${operationName} already exists.` },
+            { message: `An example named ${operationName} already exists.` },
           ],
         });
       }
@@ -222,15 +222,18 @@ async function saveQuery(event) {
     .catch((e) => {
       if (e.status === 404) {
         return null;
+      } else {
+        return null;
+        // TODO: throw error if we can't check
       }
-      throw new RequestError({
+      /* throw new RequestError({
         statusCode: 500,
         errors: [
           {
             message: `Internal error. Could not check if an example with ${operationName} already exists.`,
           },
         ],
-      });
+      }); */
     });
 
   const serviceInfo = await fetchServiceInfo({});
@@ -279,7 +282,10 @@ async function saveQuery(event) {
   const newBranchRef = `refs/heads/save-query-${nanoid(8)}`;
   const octokit = await octokitPromise;
 
-  await existingFilePromise;
+  const existingFileError = await existingFilePromise;
+  if (existingFileError) {
+    throw existingFileError;
+  }
 
   await octokit.rest.git.createRef({
     owner: "dwwoelfel", // TODO: get from environment
