@@ -166,8 +166,8 @@ ${prettyQuery}
 `;
 }
 
-async function getOctokit() {
-  const secrets = await getSecrets();  
+async function getOctokit(event) {
+  const secrets = await getSecrets(event);  
 
   const gitHubToken = secrets.gitHub?.bearerToken;
 
@@ -192,7 +192,7 @@ async function saveQuery(event) {
 
   const { query, parsedQuery, operationName } = bodyOrError;
 
-  const octokitPromise = getOctokit();
+  const octokitPromise = getOctokit(event);
 
   const mainBranchPromise = octokitPromise.then((octokit) =>
     octokit.rest.repos.getBranch({
