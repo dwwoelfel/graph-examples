@@ -167,9 +167,7 @@ ${prettyQuery}
 }
 
 async function getOctokit() {
-  const secrets = await getSecrets();
-
-  console.log('secrets', secrets);
+  const secrets = await getSecrets();  
 
   const gitHubToken = secrets.gitHub?.bearerToken;
 
@@ -322,6 +320,8 @@ async function saveQuery(event) {
 }
 
 export const handler: Handler = async (event, context) => {
+  console.log(event);
+  console.log(context);
   try {
     const result = await saveQuery(event);
     return {
