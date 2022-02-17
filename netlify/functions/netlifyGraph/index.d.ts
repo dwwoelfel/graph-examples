@@ -31,6 +31,7 @@ export type ServiceInfo = {
     oneGraph: {
       serverInfo: {
         buildNumber: number;
+        sha: string;
       };
       services: Array<{
         service:

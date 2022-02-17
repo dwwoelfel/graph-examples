@@ -1,4 +1,4 @@
-import { Handler, getSecrets } from "@netlify/functions";
+import { Handler, getSecrets, HandlerEvent } from "@netlify/functions";
 import {
   buildClientSchema,
   GraphQLSchema,
@@ -13,7 +13,6 @@ import {
   GraphQLUnionType,
   GraphQLInterfaceType,
   Kind,
-  GraphQLError,
 } from "graphql";
 import { nanoid } from "nanoid";
 import fetch from "node-fetch";
@@ -21,6 +20,8 @@ import { Octokit } from "octokit";
 import { fetchServiceInfo } from "./../netlifyGraph";
 import prettier from "prettier/standalone";
 import prettierGraphql from "prettier/parser-graphql";
+import { RequestError, wrapHandler } from "../common";
+import { stringify as printYaml } from "yaml";
 
 let schemaMemo: null | [number, GraphQLSchema] = null;
 
@@ -61,7 +62,7 @@ async function getOneGraphSchema(buildNumber: number) {
   return schema;
 }
 
-function validateBody(event) {
+function validateBody(event: HandlerEvent) {
   if (!event.headers["content-type"]?.startsWith("application/json")) {
     return new Error("Invalid Content-Type header. Expected application/json.");
   }
@@ -69,10 +70,14 @@ function validateBody(event) {
     const json = JSON.parse(event.body);
     const query = json.query;
     const operationName = json.operationName;
+    const doc = json.doc;
     if (!query) {
       return new Error(
         "Invalid body. Expected key `query` with a GraphQL query."
       );
+    }
+    if (doc && typeof doc !== "string") {
+      return new Error("Invalid body. Expected key `doc` to be a string.");
     }
     try {
       const parsedQuery = parse(query);
@@ -105,25 +110,13 @@ function validateBody(event) {
         parsedQuery,
         query,
         operationName: validatedOperationName,
+        doc,
       };
     } catch (e) {
       return new Error(e);
     }
   } catch (e) {
     return new Error("Invalid body. Must be valid JSON.");
-  }
-}
-
-type ErrorObject = {
-  statusCode: number;
-  errors: Array<{ message: string } | GraphQLError>;
-};
-
-class RequestError extends Error {
-  readonly error: ErrorObject;
-  constructor(error: ErrorObject) {
-    super(error.errors[0]?.message || "");
-    this.error = error;
   }
 }
 
@@ -147,16 +140,17 @@ function getUnderlyingTypeName(t: GraphQLOutputType): string {
   throw new Error("Unexpected type " + t.toString());
 }
 
-function makeExampleMarkdown({ query, operationName, services }) {
+function makeExampleMarkdown({ query, operationName, services, doc }) {
+  const frontmatter = printYaml({ operationName, services, doc });
   const prettyQuery = prettier
     .format(query, {
       parser: "graphql",
       plugins: [prettierGraphql],
     })
     .trim();
+
   return `---
-operationName: ${operationName}
-services:${services.map((s) => `\n  - ${s.service}`).join("")}
+${frontmatter}
 ---
 
 \`\`\`graphql
@@ -190,17 +184,21 @@ async function saveQuery(event) {
     });
   }
 
-  const { query, parsedQuery, operationName } = bodyOrError;
+  const { query, parsedQuery, operationName, doc } = bodyOrError;
 
   const octokitPromise = getOctokit(event);
 
-  const mainBranchPromise = octokitPromise.then((octokit) =>
-    octokit.rest.repos.getBranch({
-      owner: "dwwoelfel",
-      repo: "graph-examples",
-      branch: "refs/heads/main",
-    })
-  );
+  const mainBranchPromise = octokitPromise
+    .then((octokit) =>
+      octokit.rest.repos.getBranch({
+        owner: "dwwoelfel",
+        repo: "graph-examples",
+        branch: "refs/heads/main",
+      })
+    )
+    .catch((e) => {
+      return e;
+    });
 
   const existingFilePromise = octokitPromise
     .then(async (octokit) => {
@@ -298,6 +296,7 @@ async function saveQuery(event) {
     query,
     operationName,
     services: [...usedServices],
+    doc,
   });
 
   await octokit.rest.repos.createOrUpdateFileContents({
@@ -318,35 +317,15 @@ async function saveQuery(event) {
   });
 
   return {
-    pullRequest: {
-      url: pull.data.html_url,
-      number: pull.data.number,
+    data: {
+      pullRequest: {
+        url: pull.data.html_url,
+        number: pull.data.number,
+      },
     },
   };
 }
 
-export const handler: Handler = async (event, context) => {
-  console.log(event);
-  console.log(context);
-  try {
-    const result = await saveQuery(event);
-    return {
-      statusCode: 200,
-      body: JSON.stringify(result),
-    };
-  } catch (e) {
-    if (e instanceof RequestError) {
-      return {
-        statusCode: e.error.statusCode,
-        body: JSON.stringify({ errors: e.error.errors }),
-      };
-    }
-    console.error(e);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({
-        errors: [{ message: "Unexpected error. Please try again." }],
-      }),
-    };
-  }
-};
+export const handler: Handler = wrapHandler((event) => {
+  return saveQuery(event);
+});

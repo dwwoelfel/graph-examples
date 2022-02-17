@@ -54,6 +54,7 @@ const operationsDoc = `query ServiceInfo @netlify(id: """f7913a3f-b6a8-434e-83b8
   oneGraph {
     serverInfo {
       buildNumber
+      sha
     }
     services {
       service

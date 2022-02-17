@@ -11,6 +11,7 @@
     "@types/node": "^16.11.25",
     "@types/react": "^17.0.39",
     "@types/react-dom": "^17.0.11",
+    "better-sqlite3": "^7.5.0",
     "graphql": "^16.3.0",
     "nanoid": "^3.3.0",
     "node-fetch": "^3.2.0",
@@ -18,14 +19,21 @@
     "react": "^17.0.2",
     "react-dom": "^17.0.2",
     "react-scripts": "5.0.0",
+    "remark": "^14.0.2",
+    "remark-frontmatter": "^4.0.1",
+    "remark-stringify": "^10.0.2",
     "typescript": "^4.5.5",
-    "web-vitals": "^2.1.4"
+    "unified": "^10.1.1",
+    "web-vitals": "^2.1.4",
+    "yaml": "^1.10.2"
   },
   "scripts": {
     "start": "PORT=3001 react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "build-index": "esbuild scripts/buildIndex.ts --bundle --platform=node --outfile=dist/buildIndex.js --target=node10.4 --external:better-sqlite3 && node dist/buildIndex.js",
+    "run-import": "esbuild scripts/import.ts --bundle --platform=node --outfile=dist/import.js --target=node10.4 --external:better-sqlite3 && node dist/import.js"
   },
   "eslintConfig": {
     "extends": [
@@ -46,6 +54,9 @@
     ]
   },
   "devDependencies": {
-    "prettier": "^2.5.1"
+    "@types/better-sqlite3": "^7.4.2",
+    "esbuild": "^0.14.21",
+    "prettier": "^2.5.1",
+    "ts-node": "^10.5.0"
   }
 }
