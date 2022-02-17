@@ -1,10 +1,7 @@
 ---
 operationName: GitHubFindIssueIdByNumber
 services:
-  - service: GITHUB
-    slug: github
-    friendlyServiceName: GitHub
-    typePrefix: GitHub
+  - GITHUB
 doc: >
   Given a repository `$repoOwner`/`$repoName`, find the id of an issue by its
   `$number`.
