@@ -21,7 +21,7 @@ mutation CreateDevToWebhook($apiKey: String!) {
       input: {
         webhookEndpoint: {
           source: "OneGraph"
-          targetUrl: "https://websmee.com/hook/dev-to-example?_websmee_inspect"
+          targetUrl: "https://websmee.com/hook/dev-to-example"
           events: ["article_created", "article_updated"]
         }
       }
