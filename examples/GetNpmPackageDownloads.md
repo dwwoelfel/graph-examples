@@ -2,6 +2,9 @@
 operationName: GetNpmPackageDownloads
 services:
   - NPM
+doc: >
+  Get the downloads for a package on npm given the package name
+  
 ---
 
 ```graphql
