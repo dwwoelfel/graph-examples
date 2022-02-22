@@ -7,6 +7,8 @@ import remarkStringify from "remark-stringify";
 import { parse as parseYaml } from "yaml";
 import { parse } from "graphql";
 
+console.log(JSON.stringify(process.env, null, 2));
+
 const schema = /* sql */ `
 create table query (
   operationName text primary key,
