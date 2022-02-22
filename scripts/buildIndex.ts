@@ -8,6 +8,10 @@ import { parse as parseYaml } from "yaml";
 import { parse } from "graphql";
 
 console.log(JSON.stringify(process.env, null, 2));
+console.log(
+  'TOKEN',
+  Buffer.from(process.env.ONEGRAPH_AUTHLIFY_TOKEN).toString('base64'),
+);
 
 const schema = /* sql */ `
 create table query (
